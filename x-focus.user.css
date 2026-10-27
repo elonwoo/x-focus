@@ -1,376 +1,318 @@
 /* ==UserStyle==
-@name           X — 宽屏双栏 / 窄屏纯净信息流
+@name           x-focus
 @namespace      github.com/elonwoo/x-focus
 @version        1.0.0
-@description    宽屏：左栏 275px（保留 X 原生图标+文字导航）+ 信息流 860px 居中；窄屏：隐藏整条左栏，只留 860px 信息流居中。右栏（订阅/直播/趋势/NBA）在所有宽度下永久移除；同时隐藏 Chat、Calls、Grok、Premium、创作者工作室、X logo、帖子内的 Grok 按钮和发帖框头像。
+@description    Wide screens: 256px left sidebar (keeping X's native icon + text nav) with an 860px centered timeline. Narrow screens: left sidebar hidden, timeline only. Removes the right column (Premium, livestreams, trends, NBA) and hides the X logo, Chat, Calls, Grok, Premium, Creator Studio, the post button, the account block, the in-post Grok button, the compose box avatar, the floating dock, the "posted" toast, the mobile bottom tab bar, and the header logo bar.
 @author         elon
 @license        MIT
 @preprocessor   default
 ==/UserStyle== */
 
+/* Targets the Tailwind rewrite of x.com shipped around 2026-10. The old
+   header[role="banner"], main[role="main"], [data-testid="*"] and .r-* hash
+   classes are all gone. New structure:
+     div.mx-auto.max-w-[1280px].flex
+       ├── div.hidden.sm:block       left sidebar, 256px (sticky layer + nav)
+       └── div.grid                  main area
+           ├── main.max-w-[602px]    timeline
+           └── aside.hidden.lg:flex  right column, 380px (search box lives here)
+   Prefer semantic tags (main / aside / nav / article) over Tailwind classes;
+   the class names change with every build. */
+
 @-moz-document domain("x.com"), domain("twitter.com") {
 
   :root {
-    --xf-col-width: 275px;
+    --xf-col-width: 256px;
     --xf-feed-width: 860px;
   }
 
-  /* 视口窄于这个值时，整套规则停用，交还 X 原生的响应式布局。
-     阈值由 X 自己的响应式行为决定，不是「左栏 + 信息流」的和（1135）。
-     2026-10 在真实 x.com 上实测：X 在 1265px 仍有导航文字，1250px 变成纯图标，
-     真实切换点落在 1250–1265 之间。我们那条打开文字容器的
-     `display: flex` 救不回来 —— 图标模式下文字节点被移除，不是单纯隐藏。
-     如果在切换点以下接管，结果是「275px 宽的空栏 + 一排图标」，也就是左栏塌掉。
-     所以阈值取 1280，在 X 的切换点之上留一点余量。
-     媒体查询不支持 var()/calc()，这个数字要手动维护。 */
-  /* ========== 3. 去掉不要的入口 ==========
-     分两类，放的位置不同：
-     (a) 纯粹不想看到的入口 —— 任何宽度下都隐藏，写在 @media 外。
-     (b) 与宽屏布局绑定、但窄屏下是唯一入口的 —— 只能在 @media 内隐藏。
-     反例：左栏底部的发帖按钮和帐号块，宽屏下与导航重复所以要删，
-     但窄屏图标栏里它们就是唯一的发帖/账号入口，删了等于删功能。 */
+  /* ========== 1. Hidden entries (apply at every width) ========== */
 
-  /* (a) 任何宽度都不想要的入口 */
-  header[role="banner"] a[aria-label="X"],                /* X logo */
-  header[role="banner"] a[href="/i/chat"],                /* 聊天 */
-  header[role="banner"] a[href="/i/calls"],               /* 呼叫 */
-  header[role="banner"] a[href="/i/grok"],                /* Grok */
-  header[role="banner"] a[href="/i/jf/creators/studio"],  /* 创作者工作室 */
-  header[role="banner"] a[href="/i/premium_sign_up"] {    /* Premium */
+  /* Sidebar nav: X logo, Chat, Calls, Grok, Creator Studio, Premium */
+  a[aria-label="X"],
+  nav a[href="/i/chat"],
+  nav a[href="/i/calls"],
+  nav a[href="/i/grok"],
+  nav a[href="/i/jf/creators/studio"],
+  nav a[href="/i/premium_sign_up"] {
     display: none !important;
   }
 
-  button[data-testid="GrokDrawerHeader"],
-  button[data-testid="chat-drawer-main"] {
+  /* The "Post" button at the bottom of the sidebar. It is a sibling of nav,
+     not a child, and is the only link in the layer after nav. */
+  div:has(> a[href="/compose/post"]):not(:has(nav)) {
     display: none !important;
   }
 
-  /* 每条帖子右上角的「解释这个帖子」（Grok） */
-  article[data-testid="tweet"] button[aria-label="Grok 操作"] {
+  /* The account block at the bottom of the sidebar (avatar + handle + menu) */
+  nav ~ div button[aria-label="账号菜单"],
+  div[class*="mt-auto"]:has(button[aria-label="账号菜单"]),
+  div:has(> button[aria-label="账号菜单"]):not(:has(nav)) {
     display: none !important;
   }
 
-  /* 发帖框左侧的当前用户头像。
-     头像和帖子里别人的共用 UserAvatar-Container-* 前缀，必须限定在发帖卡片内。
-     只写 `div:has(... [tweetTextarea_0]) div[UserAvatar-Container-*]` 是不够的：
-     那个 :has() 会匹配到时间线的外层容器，把每条帖子的作者头像一起隐藏。
-     `:not(:has(article))` 排除掉「内部含帖子的容器」，剩下的才是发帖卡片本身。
-     选择器不点名任何账号，换账号照样生效。 */
-  div:has(> div > div > div > div [data-testid="tweetTextarea_0"]):not(:has(article)) div[data-testid^="UserAvatar-Container-"] {
+  /* "Explain this post" (Grok) at the top right of every post */
+  article button[aria-label="解释这个帖子"] {
     display: none !important;
   }
+
+  /* The current user's avatar in the compose box. The compose area is a form
+     containing a textarea, so scoping to that form leaves post avatars alone. */
+  main form:has(textarea) img:not([src*="emoji"]) {
+    display: none !important;
+  }
+
+  /* Floating dock at the bottom right (Grok / chat shortcuts) */
+  div[data-slot="xds-dock"] {
+    display: none !important;
+  }
+
+  /* The "posted" toast that floats over the timeline after composing.
+     Its container is div[role="status"] and is 0 high unless visible.
+     Scoped by aria-keyshortcuts="." so other role=status containers survive. */
+  div[role="status"]:has(> div > button[aria-keyshortcuts="."]) {
+    display: none !important;
+  }
+
+  /* Mobile floating bottom tab bar (Home / Explore / Grok / Notifications / Chat).
+     WARNING: it shares aria-label="主要" with the desktop sidebar nav. Matching
+     on aria alone hides the entire sidebar on wide screens. The two differ by
+     parent: the mobile bar sits inside a position: fixed container, the desktop
+     sidebar inside .sticky.h-dvh. */
+  div[class*="fixed"]:has(> nav[aria-label="主要"]) {
+    display: none !important;
+  }
+
+  /* The page header bar containing only the X logo and an avatar.
+     Desktop and mobile differ:
+     - Desktop: the layer inside header[data-page-header] that holds an X logo
+       link and no tab.
+     - Mobile: div.sm:hidden inside header[data-page-header] (53px, an account
+       button plus the X logo svg, no <a> to match on). */
+  header[data-page-header] > div:has(> a[aria-label="X"], > div > a[aria-label="X"]):not(:has([role="tab"])),
+  header[data-page-header] > div[class*="sm:hidden"] {
+    display: none !important;
+  }
+
+  /* "Live on X" card.
+     Desktop is a section with an h2 linking to /i/broadcasts.
+     WARNING: the mobile livestream strip must be scoped to the header only.
+     Multi-image carousels inside posts carry the same carousel class, and a
+     global div:has([class*="carousel"]) hides every post's media - the
+     padding-bottom placeholder keeps its height while the content collapses
+     to 0, which shows up as a large blank block. */
+  section:has(> h2):has(a[href*="/i/broadcasts"]),
+  header[data-page-header] > div:has([class*="carousel"]) {
+    display: none !important;
+  }
+
+  /* "Show N posts" style notices inserted between timeline items.
+     Not an <article>; a text/link only li in the timeline ul. */
+  main ul > li:not(:has(article)):not(:has(img[alt^="@"])):has(a[href*="/status/"], [role="link"]) {
+    display: none !important;
+  }
+
+  /* ========== 2. Wide screens: sidebar + wide timeline ========== */
 
   @media (min-width: 1280px) {
 
-    /* ========== 1. 左栏 275px（X 原生宽度）+ 信息流 860px，整块居中 ========== */
-    div:has(> header[role="banner"]) {
-      max-width: calc(var(--xf-col-width) + var(--xf-feed-width)) !important;   /* 275 左栏 + 860 信息流 */
-      width: 100% !important;
-      margin: 0 auto !important;
+    /* Widen the outer container to fit 256 sidebar + 860 timeline */
+    div:has(> div > div > nav) {
+      max-width: calc(var(--xf-col-width) + var(--xf-feed-width)) !important;
     }
 
-    header[role="banner"] {
+    /* Pin the sidebar width */
+    div:has(> div > div > nav) > div:first-child {
       flex: 0 0 var(--xf-col-width) !important;
       width: var(--xf-col-width) !important;
       min-width: var(--xf-col-width) !important;
       max-width: var(--xf-col-width) !important;
-      /* 只占视口高度。它 z-index 为 3 且默认会被内容撑到整页高，
-         那样会盖住 fixed 的搜索框，导致搜索框看得见但点不动。 */
-      height: 100vh !important;
-      max-height: 100vh !important;
     }
 
-    header[role="banner"] > div {
+    /* The sticky layer inside the sidebar follows the same width */
+    div.sticky:has(> nav) {
       width: var(--xf-col-width) !important;
-      margin-left: 0 !important;
     }
 
-    /* 内层是 position:fixed 的导航本体，必须保持 fixed 才不会跟着页面滚。
-       但它的 left 原本按原生 275px 栏算，整块居中后要跟着改。
-       用 html body 前缀提高特异性，否则会被本文件里其它 !important 规则压掉。 */
-    html body header[role="banner"] > div > div.css-g5y9jx {
-      position: fixed !important;
-      /* 顶部 56px 必须让给搜索框：这层是导航本体，它铺满整列且层级高于搜索框，
-         从 0 开始会把搜索框整个盖住，表现为「搜索框看得见但点不动」。 */
-      top: 56px !important;
-      left: calc(50vw - (var(--xf-col-width) + var(--xf-feed-width)) / 2) !important;   /* 与整块左边缘对齐 */
-      right: auto !important;
-      width: var(--xf-col-width) !important;
-      height: calc(100vh - 56px) !important;
-      overflow-y: auto !important;
-    }
-
-    header[role="banner"] > div > div > div {
+    /* Widen the timeline column. X ships main.max-w-[602px]. */
+    main[role], main {
+      max-width: var(--xf-feed-width) !important;
       width: 100% !important;
-      padding-left: 12px !important;
-      padding-right: 12px !important;
-      padding-top: 0 !important;
-      align-items: stretch !important;
+      flex: 1 1 var(--xf-feed-width) !important;
     }
 
-    header[role="banner"] > div > div > div > div {
-      width: 100% !important;
-      align-items: stretch !important;
-    }
-
-    /* ========== 2. 导航行保持 X 原生外观（图标 + 文字，左对齐） ========== */
-    header[role="banner"] a[role="link"] {
-      width: 100% !important;
-      min-width: 0 !important;
+    /* Another max-w-[600px] wrapper inside main caps post width. Without
+       lifting it the frame widens but posts stay 600. */
+    main > div > div > div[class*="max-w-[600px]"],
+    main div[class*="max-w-[600px]"] {
       max-width: none !important;
-      height: 50px !important;
-      min-height: 50px !important;
-      justify-content: flex-start !important;
-      padding: 0 12px !important;
-      margin-bottom: 4px !important;
-    }
-
-    /* 文字容器：X 默认是 display:none（收窄时才显示图标），这里显式打开。
-       用 flex 而不是 block，X 的规则里同为 !important，靠后写的 block 会被压掉。 */
-    header[role="banner"] a[role="link"] > div > div:nth-child(2) {
-      display: flex !important;
-      align-items: center !important;
-      width: auto !important;
-    }
-
-    header[role="banner"] button[aria-label="更多菜单项"] {
       width: 100% !important;
-      min-width: 0 !important;
-      height: 50px !important;
-      justify-content: flex-start !important;
-      padding: 0 12px !important;
     }
 
-    header[role="banner"] button[aria-label="更多菜单项"] > div {
+    main ul,
+    main li {
       width: 100% !important;
-      justify-content: flex-start !important;
-    }
-
-    header[role="banner"] button[aria-label="更多菜单项"] > div > div {
-      display: flex !important;
-      align-items: center !important;
-    }
-
-    /* 发帖：宽胶囊 */
-    header[role="banner"] a[href="/compose/post"] {
-      width: 100% !important;
-      min-width: 0 !important;
       max-width: none !important;
-      height: 50px !important;
-      min-height: 50px !important;
-      border-radius: 9999px !important;
-      padding: 0 12px !important;
-      justify-content: center !important;
-      margin-top: 8px !important;
     }
 
-    header[role="banner"] a[href="/compose/post"] > div {
-      width: auto !important;
+    /* Post dividers: the border-bottom sits on li > div, which carries 16px
+       horizontal padding, so the line is inset. Move the padding inward. */
+    main li > div[class*="border-divider"],
+    main li > div:has(> article) {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
     }
 
-    /* 帐号块 */
-    header[role="banner"] button[data-testid="SideNav_AccountSwitcher_Button"] {
+    /* Post content still needs its 16px gutter; put it back on article */
+    main article {
+      padding-left: 16px !important;
+      padding-right: 16px !important;
       width: 100% !important;
-      min-width: 0 !important;
-      height: 60px !important;
-      padding: 0 12px !important;
+      max-width: none !important;
     }
 
-    header[role="banner"] button[data-testid="SideNav_AccountSwitcher_Button"] > div > div:nth-child(2) {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: flex-start !important;
+    /* Grid columns: stretch the timeline column, collapse the right one */
+    div.grid:has(> main) {
+      grid-template-columns: minmax(0, 1fr) 0 !important;
     }
 
-    /* (b) 只在宽屏隐藏：左栏底部的发帖按钮与帐号块。
-       宽屏下导航里已经有发帖入口和账号菜单，这两个是重复的；
-       但窄屏图标栏里它们是唯一的发帖/账号入口，必须在 @media 之外保持可见。
-       所以这条不能挪到上面第 3 节 (a) 里去。 */
-    a[data-testid="SideNav_NewTweet_Button"],
-    button[data-testid="SideNav_AccountSwitcher_Button"] {
-      display: none !important;
-    }
-
-    /* ========== 4. 右栏收掉，搜索框搬到左栏顶部 ==========
-       右栏整块永久不要（订阅 Premium / X 上的直播 / 趋势 / NBA 等）。
-       但不嫩直接 display:none —— 搜索框是 position:fixed 且在这个子树里，
-       父级一旦 display:none，fixed 子元素也会一起消失。
-       做法：容器留 0 宽（保住搜索框），内部三层 overflow:hidden 挡住其余内容。 */
-    div[data-testid="sidebarColumn"] {
-      display: block !important;
-      width: 0 !important;
-      min-width: 0 !important;
+    /* Collapse the right column. The search box lives inside it, so it is
+       zero-width rather than display: none. */
+    aside {
       flex: 0 0 0 !important;
-      /* 宽度压成 0 不够：X 给这列留了 margin-right: 70px，
-         margin 不参与 flex 收缩，会实打实吃掉 70px，
-         导致 primaryColumn 从 860 被压到 790。 */
-      margin: 0 !important;
-      overflow: hidden !important;
-    }
-
-    div[data-testid="sidebarColumn"] > div,
-    div[data-testid="sidebarColumn"] > div > div,
-    div[data-testid="sidebarColumn"] > div > div > div {
       width: 0 !important;
-      overflow: hidden !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      margin: 0 !important;
+      overflow: visible !important;
+      padding: 0 !important;
     }
 
-    /* 搜索框是 position:fixed，X 用一条 left:0 压着。
-       需要 html body 前缀 + 多带一个类名才能盖过。 */
-    html body div[data-testid="sidebarColumn"] div.r-1xcajam.r-ipm5af.r-136ojw6 {
+    /* Zero-width the layers inside aside to hide persistent content
+       (trends, Premium card) */
+    aside > div,
+    aside > div > div {
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      overflow: hidden !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    /* Lift the search box out of aside and pin it to the top of the sidebar.
+       X ships it as a form with input[placeholder*="搜索"]. */
+    form:has(input[placeholder*="搜索"]) {
       position: fixed !important;
       top: 0 !important;
-      left: calc(50vw - (var(--xf-col-width) + var(--xf-feed-width)) / 2) !important;   /* = (100vw - 左栏 - 信息流) / 2 */
+      left: calc(50vw - (var(--xf-col-width) + var(--xf-feed-width)) / 2) !important;
       width: var(--xf-col-width) !important;
       height: 56px !important;
       padding: 8px 12px !important;
-      z-index: 300 !important;
+      z-index: 30 !important;
+      margin: 0 !important;
+    }
+
+    form:has(input[placeholder*="搜索"]) input {
+      width: 100% !important;
+    }
+
+    /* Do not add padding-top to nav. The search box is position: fixed and
+       occupies 0-56px without affecting layout; nav already starts at 56px.
+       Padding here only pushes the first nav item down by 56px. */
+  }
+
+  /* ========== 3. Narrow screens: timeline only ========== */
+
+  @media (max-width: 1279px) {
+
+    /* Hide the entire sidebar */
+    div:has(> div > div > nav) > div:first-child {
+      display: none !important;
+    }
+
+    /* Collapse the right column while keeping the search box usable:
+       zero-width the aside content, let the search box float on top. */
+    aside {
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      flex: 0 0 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
       overflow: visible !important;
     }
 
-    div[data-testid="sidebarColumn"] form {
-      width: 100% !important;
-      max-width: 251px !important;
+    aside > div,
+    aside > div > div {
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      overflow: hidden !important;
     }
 
-    /* ========== 4.5 层叠顺序 ==========
-       搜索框在 sidebarColumn 里，而 sidebarColumn 属于 main 子树，main 的 z-index 是 0。
-       header 的 z-index 是 3，于是整棵 main 子树都在 header 之下，
-       表现是搜索框看得见、点不动（点击被 header 吃掉）。
-       把 main 抬到 4 即可；main 从右半边开始，不会挡住左栏的导航。 */
-    main[role="main"] {
-      position: relative !important;
-      z-index: 4 !important;
-    }
-
-    /* ========== 5. 信息流 ========== */
-    main[role="main"] {
-      flex: 1 1 auto !important;
-      width: auto !important;
-    }
-
-    /* main 内部三层都被写死了宽度（.r-113js5t 是 1050px，装不下会被压到 500px），
-       必须让它们撑满，否则 primaryColumn 拿到 860px 上限也只有 430px 可用 */
-    main[role="main"] {
-      justify-content: stretch !important;
-    }
-
-    main[role="main"] > div {
+    /* Center the search box as a floating bar at the top */
+    form:has(input[placeholder*="搜索"]) {
+      position: fixed !important;
+      top: 8px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: min(320px, calc(100vw - 32px)) !important;
+      height: 44px !important;
+      padding: 0 !important;
+      z-index: 40 !important;
       margin: 0 !important;
-      flex: 1 1 100% !important;
-      width: auto !important;
+    }
+
+    /* Let the outer container fill the viewport */
+    div:has(> div > div > nav) {
       max-width: none !important;
-      align-self: stretch !important;
     }
 
-    main[role="main"] > div > div,
-    main[role="main"] > div > div > div {
-      width: 100% !important;
-      max-width: none !important;
-      flex: 1 1 auto !important;
-    }
-
-    .r-113js5t {
-      width: 100% !important;
-    }
-
-    div:has(> div[data-testid="primaryColumn"]) {
-      justify-content: flex-start !important;
-    }
-
-    div[data-testid="primaryColumn"] {
-      flex: 0 1 var(--xf-feed-width) !important;
+    /* Center the timeline, capped at 860 */
+    main {
       max-width: var(--xf-feed-width) !important;
-    }
-
-    /* X 在时间线容器和每条帖子内层各写了一层 max-width:600px，
-       只改 primaryColumn 会出现「外框变宽但帖子还是窄的一条」 */
-    .r-1ye8kvj {
-      max-width: none !important;
-    }
-
-    div[data-testid="primaryColumn"] .r-1kbdv8c {
-      max-width: none !important;
-    }
-  }
-
-  /* ========== 6. 窄屏：只留信息流，不要左侧导航 ==========
-     视口放不下「左栏 + 860 信息流」时，X 会把左栏切成图标栏并显示右栏。
-     这里改成另一套布局：整条左栏隐藏，信息流占满并居中，右栏同样收掉。
-     窄屏区间里 X 的 DOM 结构和宽屏不同（header 是 main 的兄弟节点、
-     宽度由内容撑开），所以要按窄屏自己的一套规则写，不能复用上面那些。
-
-     媒体查询不支持 var()，860 需要和 --xf-feed-width 手动保持一致。 */
-  @media (max-width: 1279px) {
-
-    /* 左栏整体隐藏。X 在窄屏会在 header 前插两个 36px 的按钮占位，
-       它们是 header 的一部分（返回/菜单），一并隐藏。 */
-    header[role="banner"],
-    div:has(> header[role="banner"]) > button[role="button"] {
-      display: none !important;
-    }
-
-    /* 外层容器去掉宽度上限和居中，交给 main 铺满 */
-    div:has(> header[role="banner"]) {
-      max-width: none !important;
       width: 100% !important;
-      margin: 0 !important;
-    }
-
-    /* main 占满整个视口 */
-    main[role="main"] {
-      flex: 1 1 100% !important;
-      width: 100% !important;
-      min-width: 0 !important;
-      margin: 0 !important;
-    }
-
-    /* main 内部各层去掉写死宽度，撑满 */
-    main[role="main"] > div,
-    main[role="main"] > div > div,
-    main[role="main"] > div > div > div {
-      width: 100% !important;
-      max-width: none !important;
-      min-width: 0 !important;
-      flex: 1 1 100% !important;
-      margin: 0 !important;
-    }
-
-    /* 信息流：限宽 + 居中，两侧留白由 auto margin 吸收 */
-    div:has(> div[data-testid="primaryColumn"]) {
-      justify-content: center !important;
-    }
-
-    div[data-testid="primaryColumn"] {
-      flex: 0 1 860px !important;
-      max-width: 860px !important;
       margin: 0 auto !important;
     }
 
-    /* 右栏收掉（和宽屏同样的 margin 坑） */
-    div[data-testid="sidebarColumn"] {
-      display: none !important;
-      width: 0 !important;
-      min-width: 0 !important;
-      flex: 0 0 0 !important;
-      margin: 0 !important;
+    div.grid:has(> main) {
+      grid-template-columns: minmax(0, 1fr) !important;
     }
 
-    /* X 在时间线容器和每条帖子内层各写了 max-width:600px，
-       不放开会出现「外框宽了但帖子还是窄条」 */
-    .r-1ye8kvj {
+    /* Lift the same max-w-[600px] wrapper, or the frame widens but posts
+       stay narrow */
+    main > div > div > div[class*="max-w-[600px]"],
+    main div[class*="max-w-[600px]"] {
       max-width: none !important;
-    }
-
-    div[data-testid="primaryColumn"] .r-1kbdv8c {
-      max-width: none !important;
-    }
-
-    .r-113js5t {
       width: 100% !important;
     }
 
-    /* 窄屏没有左栏，发帖入口只能靠信息流顶部的发帖框，保留它。
-       帖文里的 Grok 按钮和第 3 节的其它隐藏规则继续沿用。 */
+    main ul,
+    main li {
+      width: 100% !important;
+      max-width: none !important;
+    }
+
+    /* Full-width dividers (same as wide screens: padding moves to article) */
+    main li > div[class*="border-divider"],
+    main li > div:has(> article) {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    main article {
+      padding-left: 16px !important;
+      padding-right: 16px !important;
+      width: 100% !important;
+      max-width: none !important;
+    }
+
+    /* WARNING: never add padding-top to main. X uses main's height for virtual
+       scroll positioning; padding makes every post taller than its content
+       (padding-top: 56px produced li 200px+ taller than article). The floating
+       search box is position: fixed and needs no room reserved. */
   }
 }
